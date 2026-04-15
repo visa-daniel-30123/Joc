@@ -5,41 +5,34 @@
 
 <div class="simon-page">
     <div class="simon-shell">
-        <div class="simon-header">
-            <h1>Simon Memory</h1>
-            <p>Repeta secventa corecta si avanseaza cat mai mult.</p>
-        </div>
-
-        <div class="simon-control-bar">
-            <span class="simon-control-label">Numar butoane:</span>
-            @foreach (var count in AvailableButtonCounts)
-            {
-                <button class="@GetControlButtonClass(count)"
-                        @onclick="() => SelectButtonCount(count)">
-                    @count
-                </button>
-            }
+        <div class="simon-top-bar">
+            <div class="simon-header">
+                <h1>Color Grid Memory</h1>
+                <p>Priveste butonul aprins si ghiceste-l corect.</p>
+            </div>
+            <button class="simon-start-btn simon-start-btn-top" @onclick="StartNewGame">
+                Start joc nou
+            </button>
         </div>
 
         <div class="simon-status-panel">
             <p class="simon-status-message">@statusMessage</p>
-            <p class="simon-level-pill">Nivel curent: <strong>@level</strong></p>
+            <div class="simon-status-cards">
+                <p class="simon-level-pill">Scor: <strong>@score</strong></p>
+                <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
+            </div>
         </div>
 
-        <button class="simon-start-btn" @onclick="StartNewGame">
-            Start joc nou
-        </button>
-
         <div class="simon-grid-wrapper">
-            <div class="simon-grid" style="@($"grid-template-columns: repeat({selectedButtonCount}, 140px);")">
-                @for (var i = 0; i < selectedButtonCount; i++)
+            <div class="simon-grid simon-grid-25">
+                @for (var i = 0; i < TotalButtons; i++)
                 {
-                    var cardIndex = i;
-                    <button class="@GetCardClass(cardIndex)"
+                    var buttonIndex = i;
+                    <button class="@GetCardClass(buttonIndex)"
+                            style="@GetCardStyle(buttonIndex)"
                             disabled="@(!canPlayerClick || isPlayingSequence)"
-                            @onclick="() => OnPlayerClick(cardIndex)">
-                        <span class="simon-card-number">@(cardIndex + 1)</span>
-                        <span class="simon-card-label">@CardLabels[cardIndex]</span>
+                            @onclick="() => OnPlayerClick(buttonIndex)">
+                        <span class="simon-card-number">@(buttonIndex + 1)</span>
                     </button>
                 }
             </div>
@@ -52,11 +45,10 @@
     <div class="simon-overlay" role="dialog" aria-modal="true" aria-label="Instructiuni joc">
         <div class="simon-overlay-content simon-intro-content">
             <h2>Instructiuni rapide</h2>
-            <p><strong>Alege 3-7 butoane</strong> din bara de sus.</p>
             <p>1. Apasa <strong>Start joc nou</strong>.</p>
-            <p>2. Retine ordinea in care se aprind culorile.</p>
-            <p>3. Apasa culorile in aceeasi ordine.</p>
-            <p>4. Daca gresesti, vezi ordinea corecta si jocul reincepe.</p>
+            <p>2. Se aprinde un singur buton in grila 5x5.</p>
+            <p>3. Apasa butonul corect pentru a creste scorul.</p>
+            <p>4. Daca gresesti, jocul se reseteaza.</p>
             <button class="simon-start-btn simon-intro-close-btn" @onclick="DismissIntroMessage">Am inteles</button>
         </div>
     </div>
@@ -70,16 +62,15 @@
 }
 
 @code {
-    private readonly List<int> sequence = [];
-    private readonly List<int> playerInputs = [];
     private readonly Random random = new();
-    private static readonly int[] AvailableButtonCounts = [3, 4, 5, 6, 7];
-    private static readonly string[] CardLabels = ["Rosu", "Galben", "Verde", "Albastru", "Mov", "Portocaliu", "Turcoaz"];
+    private const int TotalButtons = 25;
+    private const int InitialHighlightDurationMs = 1000;
+    private const int MinimumHighlightDurationMs = 120;
 
     private int? highlightedButton;
     private int? selectedButton;
-    private int level;
-    private int selectedButtonCount = 4;
+    private int targetButton = -1;
+    private int score;
     private int gameSessionId;
     private bool isPlayingSequence;
     private bool canPlayerClick;
@@ -91,118 +82,92 @@
     private async Task StartNewGame()
     {
         var sessionId = BeginNewSession();
-        sequence.Clear();
-        playerInputs.Clear();
-        level = 0;
-        statusMessage = $"Pregateste-te! Joc cu {selectedButtonCount} butoane.";
+        score = 0;
+        targetButton = -1;
+        statusMessage = "Pregateste-te! Memorizeaza butonul aprins.";
         canPlayerClick = false;
         highlightedButton = null;
         selectedButton = null;
         showCenterMessage = false;
         centerMessage = string.Empty;
-        await StartNextRound(sessionId);
+        await StartNextRound(sessionId, true);
     }
 
-    private async Task StartNextRound(int sessionId)
+    private async Task StartNextRound(int sessionId, bool isFirstRound = false)
     {
         if (IsStaleSession(sessionId))
         {
             return;
         }
 
-        level++;
-        sequence.Clear();
-        for (var i = 0; i < level; i++)
-        {
-            sequence.Add(random.Next(0, selectedButtonCount));
-        }
-        playerInputs.Clear();
+        targetButton = random.Next(0, TotalButtons);
         canPlayerClick = false;
-        statusMessage = $"Nivel {level}: memoreaza secventa.";
+        statusMessage = isFirstRound
+            ? "Prima runda: priveste cu atentie."
+            : "Runda noua: priveste butonul aprins.";
 
-        await PlaySequence(sessionId);
+        await PlayTargetButton(sessionId);
 
         if (IsStaleSession(sessionId))
         {
             return;
         }
 
-        statusMessage = $"Nivel {level}: randul tau.";
+        statusMessage = "Randul tau: ghiceste butonul.";
         canPlayerClick = true;
     }
 
-    private async Task PlaySequence(int sessionId)
+    private async Task PlayTargetButton(int sessionId)
     {
         if (IsStaleSession(sessionId))
         {
             return;
         }
 
+        var highlightDurationMs = GetHighlightDurationMs();
         isPlayingSequence = true;
+        highlightedButton = targetButton;
+        StateHasChanged();
+        await Task.Delay(highlightDurationMs);
 
-        foreach (var buttonIndex in sequence.ToArray())
+        if (IsStaleSession(sessionId))
         {
-            if (IsStaleSession(sessionId))
-            {
-                isPlayingSequence = false;
-                highlightedButton = null;
-                return;
-            }
-
-            highlightedButton = buttonIndex;
-            StateHasChanged();
-            await Task.Delay(1000);
-
-            if (IsStaleSession(sessionId))
-            {
-                isPlayingSequence = false;
-                highlightedButton = null;
-                return;
-            }
-
             highlightedButton = null;
-            StateHasChanged();
-            await Task.Delay(250);
+            isPlayingSequence = false;
+            return;
         }
 
+        highlightedButton = null;
+        StateHasChanged();
+        await Task.Delay(220);
         isPlayingSequence = false;
     }
 
     private async Task OnPlayerClick(int buttonIndex)
     {
         var sessionId = gameSessionId;
-
-        if (!canPlayerClick)
+        if (!canPlayerClick || IsStaleSession(sessionId))
         {
             return;
         }
 
         selectedButton = buttonIndex;
-        _ = ClearSelectedButtonAsync(buttonIndex);
+        _ = ClearSelectedButtonAsync(buttonIndex, sessionId);
 
-        playerInputs.Add(buttonIndex);
-
-        if (playerInputs.Count > sequence.Count || IsStaleSession(sessionId))
+        if (buttonIndex != targetButton)
         {
-            return;
-        }
-
-        var expectedButton = sequence[playerInputs.Count - 1];
-
-        if (buttonIndex != expectedButton)
-        {
-            var reachedLevel = level;
-            statusMessage = $"Ai gresit la nivelul {reachedLevel}. Reincepe de la capat...";
+            var reachedScore = score;
+            statusMessage = $"Ai gresit. Scor final: {reachedScore}.";
             canPlayerClick = false;
 
-            await ShowCenterMessageAsync("Ai gresit ordinea! Iti arat din nou ordinea corecta.", 1300, sessionId);
+            await ShowCenterMessageAsync("Ai gresit! Iti arat butonul corect.", 1300, sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
             }
 
-            statusMessage = $"Ordinea corecta la nivelul {reachedLevel} este redata acum.";
-            await PlaySequence(sessionId);
+            statusMessage = "Butonul corect este afisat acum.";
+            await PlayTargetButton(sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
@@ -218,19 +183,17 @@
             return;
         }
 
-        if (playerInputs.Count == sequence.Count)
+        score++;
+        statusMessage = "Corect! Urmeaza urmatorul buton.";
+        canPlayerClick = false;
+        await Task.Delay(650);
+
+        if (IsStaleSession(sessionId))
         {
-            statusMessage = "Corect! Urmeaza un nivel mai greu.";
-            canPlayerClick = false;
-            await Task.Delay(700);
-
-            if (IsStaleSession(sessionId))
-            {
-                return;
-            }
-
-            await StartNextRound(sessionId);
+            return;
         }
+
+        await StartNextRound(sessionId);
     }
 
     private string GetCardClass(int buttonIndex)
@@ -240,37 +203,21 @@
         return $"simon-card simon-{buttonIndex}{active}{selected}";
     }
 
-    private string GetControlButtonClass(int count)
+    private string GetCardStyle(int buttonIndex)
     {
-        return count == selectedButtonCount ? "simon-control-btn active" : "simon-control-btn";
+        var hue = (buttonIndex * 360 / TotalButtons) % 360;
+        return $"background-color: hsl({hue} 72% 52%);";
     }
 
-    private async Task SelectButtonCount(int count)
-    {
-        if (count == selectedButtonCount)
-        {
-            return;
-        }
-
-        BeginNewSession();
-        selectedButtonCount = count;
-        sequence.Clear();
-        playerInputs.Clear();
-        highlightedButton = null;
-        selectedButton = null;
-        level = 0;
-        canPlayerClick = false;
-        isPlayingSequence = false;
-        showCenterMessage = false;
-        centerMessage = string.Empty;
-        statusMessage = $"Ai selectat {selectedButtonCount} butoane. Apasa Start joc nou.";
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task ClearSelectedButtonAsync(int buttonIndex)
+    private async Task ClearSelectedButtonAsync(int buttonIndex, int sessionId)
     {
         await InvokeAsync(StateHasChanged);
         await Task.Delay(180);
+
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
 
         if (selectedButton == buttonIndex)
         {
@@ -294,7 +241,6 @@
         centerMessage = message;
         showCenterMessage = true;
         await InvokeAsync(StateHasChanged);
-
         await Task.Delay(durationMs);
 
         if (IsStaleSession(sessionId))
@@ -315,5 +261,28 @@
     private bool IsStaleSession(int sessionId)
     {
         return sessionId != gameSessionId;
+    }
+
+    private int GetHighlightDurationMs()
+    {
+        var duration = InitialHighlightDurationMs;
+
+        for (var i = 0; i < score; i++)
+        {
+            if (duration > 500)
+            {
+                duration -= 50;
+            }
+            else if (duration > 300)
+            {
+                duration -= 25;
+            }
+            else
+            {
+                duration -= 15;
+            }
+        }
+
+        return Math.Max(MinimumHighlightDurationMs, duration);
     }
 }

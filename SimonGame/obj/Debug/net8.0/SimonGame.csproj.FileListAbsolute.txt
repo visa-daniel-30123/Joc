@@ -40,3 +40,4 @@ C:\Joc\SimonGame\bin\Debug\net8.0\temp_build_output\appsettings.json
 C:\Joc\SimonGame\bin\Debug\net8.0\temp_build_output\SimonGame.deps.json
 C:\Joc\SimonGame\bin\Debug\net8.0\temp_build_output\SimonGame.runtimeconfig.json
 C:\Joc\SimonGame\bin\Debug\net8.0\temp_build_output\SimonGame.staticwebassets.runtime.json
+C:\Joc\SimonGame\obj\Debug\net8.0\SimonGame.sourcelink.json
