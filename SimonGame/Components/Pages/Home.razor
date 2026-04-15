@@ -1,0 +1,319 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+<PageTitle>Joc</PageTitle>
+
+<div class="simon-page">
+    <div class="simon-shell">
+        <div class="simon-header">
+            <h1>Simon Memory</h1>
+            <p>Repeta secventa corecta si avanseaza cat mai mult.</p>
+        </div>
+
+        <div class="simon-control-bar">
+            <span class="simon-control-label">Numar butoane:</span>
+            @foreach (var count in AvailableButtonCounts)
+            {
+                <button class="@GetControlButtonClass(count)"
+                        @onclick="() => SelectButtonCount(count)">
+                    @count
+                </button>
+            }
+        </div>
+
+        <div class="simon-status-panel">
+            <p class="simon-status-message">@statusMessage</p>
+            <p class="simon-level-pill">Nivel curent: <strong>@level</strong></p>
+        </div>
+
+        <button class="simon-start-btn" @onclick="StartNewGame">
+            Start joc nou
+        </button>
+
+        <div class="simon-grid-wrapper">
+            <div class="simon-grid" style="@($"grid-template-columns: repeat({selectedButtonCount}, 140px);")">
+                @for (var i = 0; i < selectedButtonCount; i++)
+                {
+                    var cardIndex = i;
+                    <button class="@GetCardClass(cardIndex)"
+                            disabled="@(!canPlayerClick || isPlayingSequence)"
+                            @onclick="() => OnPlayerClick(cardIndex)">
+                        <span class="simon-card-number">@(cardIndex + 1)</span>
+                        <span class="simon-card-label">@CardLabels[cardIndex]</span>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (showIntroMessage)
+{
+    <div class="simon-overlay" role="dialog" aria-modal="true" aria-label="Instructiuni joc">
+        <div class="simon-overlay-content simon-intro-content">
+            <h2>Instructiuni rapide</h2>
+            <p><strong>Alege 3-7 butoane</strong> din bara de sus.</p>
+            <p>1. Apasa <strong>Start joc nou</strong>.</p>
+            <p>2. Retine ordinea in care se aprind culorile.</p>
+            <p>3. Apasa culorile in aceeasi ordine.</p>
+            <p>4. Daca gresesti, vezi ordinea corecta si jocul reincepe.</p>
+            <button class="simon-start-btn simon-intro-close-btn" @onclick="DismissIntroMessage">Am inteles</button>
+        </div>
+    </div>
+}
+
+@if (showCenterMessage)
+{
+    <div class="simon-overlay" role="alert" aria-live="assertive">
+        <div class="simon-overlay-content">@centerMessage</div>
+    </div>
+}
+
+@code {
+    private readonly List<int> sequence = [];
+    private readonly List<int> playerInputs = [];
+    private readonly Random random = new();
+    private static readonly int[] AvailableButtonCounts = [3, 4, 5, 6, 7];
+    private static readonly string[] CardLabels = ["Rosu", "Galben", "Verde", "Albastru", "Mov", "Portocaliu", "Turcoaz"];
+
+    private int? highlightedButton;
+    private int? selectedButton;
+    private int level;
+    private int selectedButtonCount = 4;
+    private int gameSessionId;
+    private bool isPlayingSequence;
+    private bool canPlayerClick;
+    private string statusMessage = "Apasa Start joc nou pentru a incepe.";
+    private bool showIntroMessage = true;
+    private bool showCenterMessage;
+    private string centerMessage = string.Empty;
+
+    private async Task StartNewGame()
+    {
+        var sessionId = BeginNewSession();
+        sequence.Clear();
+        playerInputs.Clear();
+        level = 0;
+        statusMessage = $"Pregateste-te! Joc cu {selectedButtonCount} butoane.";
+        canPlayerClick = false;
+        highlightedButton = null;
+        selectedButton = null;
+        showCenterMessage = false;
+        centerMessage = string.Empty;
+        await StartNextRound(sessionId);
+    }
+
+    private async Task StartNextRound(int sessionId)
+    {
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        level++;
+        sequence.Clear();
+        for (var i = 0; i < level; i++)
+        {
+            sequence.Add(random.Next(0, selectedButtonCount));
+        }
+        playerInputs.Clear();
+        canPlayerClick = false;
+        statusMessage = $"Nivel {level}: memoreaza secventa.";
+
+        await PlaySequence(sessionId);
+
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        statusMessage = $"Nivel {level}: randul tau.";
+        canPlayerClick = true;
+    }
+
+    private async Task PlaySequence(int sessionId)
+    {
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        isPlayingSequence = true;
+
+        foreach (var buttonIndex in sequence.ToArray())
+        {
+            if (IsStaleSession(sessionId))
+            {
+                isPlayingSequence = false;
+                highlightedButton = null;
+                return;
+            }
+
+            highlightedButton = buttonIndex;
+            StateHasChanged();
+            await Task.Delay(1000);
+
+            if (IsStaleSession(sessionId))
+            {
+                isPlayingSequence = false;
+                highlightedButton = null;
+                return;
+            }
+
+            highlightedButton = null;
+            StateHasChanged();
+            await Task.Delay(250);
+        }
+
+        isPlayingSequence = false;
+    }
+
+    private async Task OnPlayerClick(int buttonIndex)
+    {
+        var sessionId = gameSessionId;
+
+        if (!canPlayerClick)
+        {
+            return;
+        }
+
+        selectedButton = buttonIndex;
+        _ = ClearSelectedButtonAsync(buttonIndex);
+
+        playerInputs.Add(buttonIndex);
+
+        if (playerInputs.Count > sequence.Count || IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        var expectedButton = sequence[playerInputs.Count - 1];
+
+        if (buttonIndex != expectedButton)
+        {
+            var reachedLevel = level;
+            statusMessage = $"Ai gresit la nivelul {reachedLevel}. Reincepe de la capat...";
+            canPlayerClick = false;
+
+            await ShowCenterMessageAsync("Ai gresit ordinea! Iti arat din nou ordinea corecta.", 1300, sessionId);
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+
+            statusMessage = $"Ordinea corecta la nivelul {reachedLevel} este redata acum.";
+            await PlaySequence(sessionId);
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+
+            await ShowCenterMessageAsync("Incepe jocul!", 2000, sessionId);
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+
+            await StartNewGame();
+            return;
+        }
+
+        if (playerInputs.Count == sequence.Count)
+        {
+            statusMessage = "Corect! Urmeaza un nivel mai greu.";
+            canPlayerClick = false;
+            await Task.Delay(700);
+
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+
+            await StartNextRound(sessionId);
+        }
+    }
+
+    private string GetCardClass(int buttonIndex)
+    {
+        var active = highlightedButton == buttonIndex ? " active" : string.Empty;
+        var selected = selectedButton == buttonIndex ? " selected" : string.Empty;
+        return $"simon-card simon-{buttonIndex}{active}{selected}";
+    }
+
+    private string GetControlButtonClass(int count)
+    {
+        return count == selectedButtonCount ? "simon-control-btn active" : "simon-control-btn";
+    }
+
+    private async Task SelectButtonCount(int count)
+    {
+        if (count == selectedButtonCount)
+        {
+            return;
+        }
+
+        BeginNewSession();
+        selectedButtonCount = count;
+        sequence.Clear();
+        playerInputs.Clear();
+        highlightedButton = null;
+        selectedButton = null;
+        level = 0;
+        canPlayerClick = false;
+        isPlayingSequence = false;
+        showCenterMessage = false;
+        centerMessage = string.Empty;
+        statusMessage = $"Ai selectat {selectedButtonCount} butoane. Apasa Start joc nou.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ClearSelectedButtonAsync(int buttonIndex)
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(180);
+
+        if (selectedButton == buttonIndex)
+        {
+            selectedButton = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void DismissIntroMessage()
+    {
+        showIntroMessage = false;
+    }
+
+    private async Task ShowCenterMessageAsync(string message, int durationMs, int sessionId)
+    {
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        centerMessage = message;
+        showCenterMessage = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(durationMs);
+
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        showCenterMessage = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private int BeginNewSession()
+    {
+        gameSessionId++;
+        return gameSessionId;
+    }
+
+    private bool IsStaleSession(int sessionId)
+    {
+        return sessionId != gameSessionId;
+    }
+}

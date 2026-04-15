@@ -1,0 +1,41 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Joc\\SimonGame\\obj\\Debug\\net8.0\\scopedcss\\projectbundle\\SimonGame.bundle.scp.css",
+      "PackagePath": "staticwebassets\\SimonGame.bundle.scp.css"
+    },
+    {
+      "Id": "C:\\Joc\\SimonGame\\wwwroot\\app.css",
+      "PackagePath": "staticwebassets\\app.css"
+    },
+    {
+      "Id": "C:\\Joc\\SimonGame\\wwwroot\\bootstrap\\bootstrap.min.css",
+      "PackagePath": "staticwebassets\\bootstrap\\bootstrap.min.css"
+    },
+    {
+      "Id": "C:\\Joc\\SimonGame\\wwwroot\\bootstrap\\bootstrap.min.css.map",
+      "PackagePath": "staticwebassets\\bootstrap\\bootstrap.min.css.map"
+    },
+    {
+      "Id": "C:\\Joc\\SimonGame\\wwwroot\\favicon.png",
+      "PackagePath": "staticwebassets\\favicon.png"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.SimonGame.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.SimonGame.props",
+      "PackagePath": "build\\SimonGame.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.SimonGame.props",
+      "PackagePath": "buildMultiTargeting\\SimonGame.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.SimonGame.props",
+      "PackagePath": "buildTransitive\\SimonGame.props"
+    }
+  ],
+  "ElementsToRemove": []
+}
