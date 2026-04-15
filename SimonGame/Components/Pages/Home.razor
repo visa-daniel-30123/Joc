@@ -128,7 +128,9 @@
 @code {
     private readonly Random random = new();
     private const int InitialHighlightDurationMs = 1000;
-    private const int MinimumHighlightDurationMs = 120;
+    private const int MinimumHighlightDurationMs = 50;
+    private const int FinalSpeedStageMs = 50;
+    private const int FinalStageBonusPoints = 250;
 
     private int gridSize = 5;
     private GameColorMode colorMode = GameColorMode.Random;
@@ -155,6 +157,7 @@
     private string centerMessage = string.Empty;
     private TaskCompletionSource<bool>? centerActionCompletion;
     private int runStartingHighScore;
+    private bool finalStageBonusAwarded;
     private int TotalButtons => gridSize * gridSize;
 
     protected override void OnInitialized()
@@ -182,6 +185,7 @@
         runSuccessfulResponseCount = 0;
         runAllResponseTotalMs = 0;
         runAllResponseCount = 0;
+        finalStageBonusAwarded = false;
         targetButton = -1;
         statusMessage = $"Pregateste-te! Memorizeaza butonul aprins ({gridSize}x{gridSize}).";
         canPlayerClick = false;
@@ -329,9 +333,25 @@
         runSuccessfulResponseCount++;
         runAllResponseTotalMs += responseMs;
         runAllResponseCount++;
+        var reachedFinalStageNow = !finalStageBonusAwarded && GetHighlightDurationMs() == FinalSpeedStageMs;
+        if (reachedFinalStageNow)
+        {
+            bonusTotal += FinalStageBonusPoints;
+            finalStageBonusAwarded = true;
+        }
         GameState.RegisterScore(GetTotalScoreRounded(), GameType.Normal);
-        statusMessage = $"Corect! Bonus runda +{roundBonus:0.00} (x{speedMultiplier}, medie {averageForBonusMs / 1000.0:0.00}s, cumulat: {bonusTotal:0.00}).";
+        statusMessage = reachedFinalStageNow
+            ? $"Corect! Bonus runda +{roundBonus:0.00} si bonus final +{FinalStageBonusPoints} pct. Ai ajuns la sfarsit!"
+            : $"Corect! Bonus runda +{roundBonus:0.00} (x{speedMultiplier}, medie {averageForBonusMs / 1000.0:0.00}s, cumulat: {bonusTotal:0.00}).";
         canPlayerClick = false;
+        if (reachedFinalStageNow)
+        {
+            await ShowCenterMessageAsync("Ai ajuns la sfarsit! Bonus +250 puncte.", 1800, sessionId);
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+        }
         await Task.Delay(650);
 
         if (IsStaleSession(sessionId))
@@ -462,9 +482,20 @@
             {
                 duration -= 25;
             }
-            else
+            else if (duration > 120)
             {
                 duration -= 15;
+            }
+            else
+            {
+                duration = duration switch
+                {
+                    120 => 110,
+                    110 => 100,
+                    100 => 90,
+                    90 => 50,
+                    _ => 50
+                };
             }
         }
 
@@ -554,6 +585,7 @@
         runSuccessfulResponseCount = 0;
         runAllResponseTotalMs = 0;
         runAllResponseCount = 0;
+        finalStageBonusAwarded = false;
         highlightedButton = null;
         selectedButton = null;
         canPlayerClick = false;
