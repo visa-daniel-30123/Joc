@@ -1,4 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@using SimonGame.Services
+@inject GameSessionState GameState
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +9,17 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4 main-top-row">
+            <div class="main-mode-switch">
+                <span class="main-mode-label">Mode:</span>
+                @foreach (var size in GameSessionState.SupportedGridSizes)
+                {
+                    <button class="@GetModeButtonClass(size)" @onclick="() => SetGridSize(size)">
+                        @($"{size}x{size}")
+                    </button>
+                }
+            </div>
+            <span class="main-high-score">High score @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
         </div>
 
         <article class="content px-4">
@@ -15,6 +27,33 @@
         </article>
     </main>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        GameState.Changed += OnGameStateChanged;
+    }
+
+    private void OnGameStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void SetGridSize(int size)
+    {
+        GameState.SetGridSize(size);
+    }
+
+    private string GetModeButtonClass(int size)
+    {
+        return size == GameState.GridSize ? "main-mode-btn active" : "main-mode-btn";
+    }
+
+    public void Dispose()
+    {
+        GameState.Changed -= OnGameStateChanged;
+    }
+}
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.

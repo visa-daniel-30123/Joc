@@ -1,15 +1,14 @@
 ﻿@page "/"
 @rendermode InteractiveServer
+@implements IDisposable
+@using SimonGame.Services
+@inject GameSessionState GameState
 
 <PageTitle>Joc</PageTitle>
 
 <div class="simon-page">
     <div class="simon-shell">
         <div class="simon-top-bar">
-            <div class="simon-header">
-                <h1>Color Grid Memory</h1>
-                <p>Priveste butonul aprins si ghiceste-l corect.</p>
-            </div>
             <button class="simon-start-btn simon-start-btn-top" @onclick="StartNewGame">
                 Start joc nou
             </button>
@@ -20,11 +19,12 @@
             <div class="simon-status-cards">
                 <p class="simon-level-pill">Scor: <strong>@score</strong></p>
                 <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
+                <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
             </div>
         </div>
 
         <div class="simon-grid-wrapper">
-            <div class="simon-grid simon-grid-25">
+            <div class="simon-grid" style="@GetGridStyle()">
                 @for (var i = 0; i < TotalButtons; i++)
                 {
                     var buttonIndex = i;
@@ -32,7 +32,6 @@
                             style="@GetCardStyle(buttonIndex)"
                             disabled="@(!canPlayerClick || isPlayingSequence)"
                             @onclick="() => OnPlayerClick(buttonIndex)">
-                        <span class="simon-card-number">@(buttonIndex + 1)</span>
                     </button>
                 }
             </div>
@@ -46,9 +45,10 @@
         <div class="simon-overlay-content simon-intro-content">
             <h2>Instructiuni rapide</h2>
             <p>1. Apasa <strong>Start joc nou</strong>.</p>
-            <p>2. Se aprinde un singur buton in grila 5x5.</p>
-            <p>3. Apasa butonul corect pentru a creste scorul.</p>
-            <p>4. Daca gresesti, jocul se reseteaza.</p>
+            <p>2. Alege modul 4x4, 5x5 sau 6x6 din bara de sus.</p>
+            <p>3. Se aprinde un singur buton pe grila aleasa.</p>
+            <p>4. Apasa butonul corect pentru a creste scorul.</p>
+            <p>5. Daca gresesti, jocul se reseteaza.</p>
             <button class="simon-start-btn simon-intro-close-btn" @onclick="DismissIntroMessage">Am inteles</button>
         </div>
     </div>
@@ -57,16 +57,24 @@
 @if (showCenterMessage)
 {
     <div class="simon-overlay" role="alert" aria-live="assertive">
-        <div class="simon-overlay-content">@centerMessage</div>
+        <div class="simon-overlay-content">
+            <p class="simon-center-message-text">@centerMessage</p>
+            @if (showCenterActionButton)
+            {
+                <button class="simon-start-btn simon-center-action-btn" @onclick="OnCenterActionClick">
+                    Incepe jocul
+                </button>
+            }
+        </div>
     </div>
 }
 
 @code {
     private readonly Random random = new();
-    private const int TotalButtons = 25;
     private const int InitialHighlightDurationMs = 1000;
     private const int MinimumHighlightDurationMs = 120;
 
+    private int gridSize = 5;
     private int? highlightedButton;
     private int? selectedButton;
     private int targetButton = -1;
@@ -77,19 +85,36 @@
     private string statusMessage = "Apasa Start joc nou pentru a incepe.";
     private bool showIntroMessage = true;
     private bool showCenterMessage;
+    private bool showCenterActionButton;
     private string centerMessage = string.Empty;
+    private TaskCompletionSource<bool>? centerActionCompletion;
+    private int TotalButtons => gridSize * gridSize;
+
+    protected override void OnInitialized()
+    {
+        gridSize = GameState.GridSize;
+        GameState.Changed += OnGameStateChanged;
+    }
+
+    public void Dispose()
+    {
+        GameState.Changed -= OnGameStateChanged;
+    }
 
     private async Task StartNewGame()
     {
         var sessionId = BeginNewSession();
         score = 0;
         targetButton = -1;
-        statusMessage = "Pregateste-te! Memorizeaza butonul aprins.";
+        statusMessage = $"Pregateste-te! Memorizeaza butonul aprins ({gridSize}x{gridSize}).";
         canPlayerClick = false;
         highlightedButton = null;
         selectedButton = null;
         showCenterMessage = false;
+        showCenterActionButton = false;
         centerMessage = string.Empty;
+        centerActionCompletion?.TrySetCanceled();
+        centerActionCompletion = null;
         await StartNextRound(sessionId, true);
     }
 
@@ -173,7 +198,7 @@
                 return;
             }
 
-            await ShowCenterMessageAsync("Incepe jocul!", 2000, sessionId);
+            await WaitForCenterActionAsync("Apasa butonul ca sa inceapa jocul.", sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
@@ -184,6 +209,7 @@
         }
 
         score++;
+        GameState.RegisterScore(score);
         statusMessage = "Corect! Urmeaza urmatorul buton.";
         canPlayerClick = false;
         await Task.Delay(650);
@@ -207,6 +233,11 @@
     {
         var hue = (buttonIndex * 360 / TotalButtons) % 360;
         return $"background-color: hsl({hue} 72% 52%);";
+    }
+
+    private string GetGridStyle()
+    {
+        return $"grid-template-columns: repeat({gridSize}, var(--simon-cell-size)); --simon-cell-size: {GetCellSizePx()}px;";
     }
 
     private async Task ClearSelectedButtonAsync(int buttonIndex, int sessionId)
@@ -240,6 +271,7 @@
 
         centerMessage = message;
         showCenterMessage = true;
+        showCenterActionButton = false;
         await InvokeAsync(StateHasChanged);
         await Task.Delay(durationMs);
 
@@ -249,11 +281,14 @@
         }
 
         showCenterMessage = false;
+        showCenterActionButton = false;
         await InvokeAsync(StateHasChanged);
     }
 
     private int BeginNewSession()
     {
+        centerActionCompletion?.TrySetCanceled();
+        centerActionCompletion = null;
         gameSessionId++;
         return gameSessionId;
     }
@@ -284,5 +319,85 @@
         }
 
         return Math.Max(MinimumHighlightDurationMs, duration);
+    }
+
+    private int GetCellSizePx()
+    {
+        return gridSize switch
+        {
+            4 => 86,
+            5 => 72,
+            6 => 60,
+            _ => 72
+        };
+    }
+
+    private async Task WaitForCenterActionAsync(string message, int sessionId)
+    {
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        centerActionCompletion?.TrySetCanceled();
+        centerActionCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        centerMessage = message;
+        showCenterMessage = true;
+        showCenterActionButton = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await centerActionCompletion.Task;
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        showCenterMessage = false;
+        showCenterActionButton = false;
+        centerActionCompletion = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCenterActionClick()
+    {
+        centerActionCompletion?.TrySetResult(true);
+    }
+
+    private void OnGameStateChanged()
+    {
+        var selectedGridSize = GameState.GridSize;
+        if (selectedGridSize == gridSize)
+        {
+            return;
+        }
+
+        gridSize = selectedGridSize;
+        _ = InvokeAsync(ResetForSelectedModeAsync);
+    }
+
+    private Task ResetForSelectedModeAsync()
+    {
+        BeginNewSession();
+        score = 0;
+        targetButton = -1;
+        highlightedButton = null;
+        selectedButton = null;
+        canPlayerClick = false;
+        isPlayingSequence = false;
+        showCenterMessage = false;
+        showCenterActionButton = false;
+        centerMessage = string.Empty;
+        statusMessage = $"Mod selectat: {gridSize}x{gridSize}. Apasa Start joc nou.";
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }

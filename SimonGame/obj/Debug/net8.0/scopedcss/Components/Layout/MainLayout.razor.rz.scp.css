@@ -16,9 +16,56 @@ main[b-xnd5bqytmg] {
     background-color: #f7f7f7;
     border-bottom: 1px solid #d6d5d5;
     justify-content: flex-end;
-    height: 3.5rem;
+    min-height: 3rem;
     display: flex;
     align-items: center;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+.main-top-row[b-xnd5bqytmg] {
+    gap: 0.75rem;
+}
+
+.main-high-score[b-xnd5bqytmg] {
+    margin-left: 1.5rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: #e9f2ff;
+    color: #1a4d93;
+    border: 1px solid #cfe2ff;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.main-mode-switch[b-xnd5bqytmg] {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-left: 0;
+}
+
+.main-mode-label[b-xnd5bqytmg] {
+    font-size: 0.85rem;
+    color: #35557f;
+    font-weight: 700;
+}
+
+.main-mode-btn[b-xnd5bqytmg] {
+    border: 1px solid #cfe0ff;
+    background: #ffffff;
+    color: #234873;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.main-mode-btn.active[b-xnd5bqytmg] {
+    background: #2f74ff;
+    color: #ffffff;
+    border-color: #2f74ff;
 }
 
     .top-row[b-xnd5bqytmg]  a, .top-row[b-xnd5bqytmg]  .btn-link {
@@ -39,6 +86,19 @@ main[b-xnd5bqytmg] {
 @media (max-width: 640.98px) {
     .top-row[b-xnd5bqytmg] {
         justify-content: space-between;
+    }
+
+    .main-high-score[b-xnd5bqytmg] {
+        margin-left: 0;
+        font-size: 0.82rem;
+        padding: 0.3rem 0.55rem;
+    }
+
+    .main-mode-switch[b-xnd5bqytmg] {
+        margin-left: 0;
+        order: 3;
+        width: 100%;
+        justify-content: flex-end;
     }
 
     .top-row[b-xnd5bqytmg]  a, .top-row[b-xnd5bqytmg]  .btn-link {
