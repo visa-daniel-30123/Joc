@@ -40,7 +40,7 @@
                     }
                 </div>
             }
-            <span class="main-high-score">High score @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
+            <span class="main-high-score">High score @GetGameTypeLabel(GameState.ActiveGameType) @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
         </div>
 
         <article class="content px-4">
@@ -93,6 +93,11 @@
     private void SetMonoHue(int hue)
     {
         GameState.SetMonoHue(hue);
+    }
+
+    private static string GetGameTypeLabel(GameType gameType)
+    {
+        return gameType == GameType.Hard ? "hard" : "normal";
     }
 
     public void Dispose()

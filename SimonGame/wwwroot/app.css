@@ -204,6 +204,36 @@ h1:focus {
     filter: brightness(1.03);
 }
 
+.simon-hard-variant-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.simon-hard-variant-label {
+    font-size: 0.83rem;
+    color: #35557f;
+    font-weight: 700;
+}
+
+.simon-hard-variant-btn {
+    border: 1px solid #cfe0ff;
+    background: #ffffff;
+    color: #234873;
+    border-radius: 999px;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.simon-hard-variant-btn.active {
+    background: #2f74ff;
+    color: #ffffff;
+    border-color: #2f74ff;
+}
+
 .simon-grid-wrapper {
     overflow-x: auto;
     padding-bottom: 4px;

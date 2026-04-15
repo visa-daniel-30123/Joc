@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/hard"
 @rendermode InteractiveServer
 @implements IDisposable
 @using SimonGame.Services
@@ -10,14 +10,23 @@
     <div class="simon-shell">
         <div class="simon-top-bar">
             <button class="simon-start-btn simon-start-btn-top" @onclick="StartNewGame">
-                Start joc nou
+                Start joc hard
             </button>
+            <div class="simon-hard-variant-switch">
+                <span class="simon-hard-variant-label">Varianta hard:</span>
+                @foreach (var variant in HardVariants)
+                {
+                    <button class="@GetHardVariantButtonClass(variant)" @onclick="() => SetHardVariant(variant)">
+                        @GetHardVariantLabel(variant)
+                    </button>
+                }
+            </div>
         </div>
 
         <div class="simon-status-panel">
             <p class="simon-status-message">@statusMessage</p>
             <div class="simon-status-cards">
-                <p class="simon-level-pill">Scor: <strong>@score</strong></p>
+                <p class="simon-level-pill">Scor hard: <strong>@score</strong></p>
                 <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
                 <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
             </div>
@@ -41,14 +50,14 @@
 
 @if (showIntroMessage)
 {
-    <div class="simon-overlay" role="dialog" aria-modal="true" aria-label="Instructiuni joc">
+    <div class="simon-overlay" role="dialog" aria-modal="true" aria-label="Instructiuni joc hard">
         <div class="simon-overlay-content simon-intro-content">
-            <h2>Instructiuni rapide</h2>
-            <p>1. Apasa <strong>Start joc nou</strong>.</p>
-            <p>2. Alege modul 4x4, 5x5 sau 6x6 din bara de sus.</p>
-            <p>3. Se aprinde un singur buton pe grila aleasa.</p>
-            <p>4. Apasa butonul corect pentru a creste scorul.</p>
-            <p>5. Daca gresesti, jocul se reseteaza.</p>
+            <h2>Instructiuni Joc hard</h2>
+            <p>1. Apasa <strong>Start joc hard</strong>.</p>
+            <p>2. Se afiseaza o secventa de butoane.</p>
+            <p>3. Apasa butoanele in <strong>aceeasi ordine</strong>.</p>
+            <p>4. La fiecare runda secventa devine mai lunga.</p>
+            <p>5. Daca gresesti, secventa corecta e redata si jocul se reseteaza.</p>
             <button class="simon-start-btn simon-intro-close-btn" @onclick="DismissIntroMessage">Am inteles</button>
         </div>
     </div>
@@ -70,7 +79,15 @@
 }
 
 @code {
+    private enum HardVariant
+    {
+        CumulativeOrder = 0,
+        FreshRandomEachLevel = 1
+    }
+
     private readonly Random random = new();
+    private readonly List<int> sequence = [];
+    private readonly List<int> playerInputs = [];
     private const int InitialHighlightDurationMs = 1000;
     private const int MinimumHighlightDurationMs = 120;
 
@@ -79,22 +96,23 @@
     private int monoHue = 212;
     private int? highlightedButton;
     private int? selectedButton;
-    private int targetButton = -1;
     private int score;
     private int gameSessionId;
     private bool isPlayingSequence;
     private bool canPlayerClick;
-    private string statusMessage = "Apasa Start joc nou pentru a incepe.";
+    private string statusMessage = "Apasa Start joc hard pentru a incepe.";
     private bool showIntroMessage = true;
     private bool showCenterMessage;
     private bool showCenterActionButton;
     private string centerMessage = string.Empty;
     private TaskCompletionSource<bool>? centerActionCompletion;
+    private HardVariant hardVariant = HardVariant.CumulativeOrder;
     private int TotalButtons => gridSize * gridSize;
+    private static readonly HardVariant[] HardVariants = [HardVariant.CumulativeOrder, HardVariant.FreshRandomEachLevel];
 
     protected override void OnInitialized()
     {
-        GameState.SetActiveGameType(GameType.Normal);
+        GameState.SetActiveGameType(GameType.Hard);
         gridSize = GameState.GridSize;
         colorMode = GameState.ColorMode;
         monoHue = GameState.MonoHue;
@@ -110,8 +128,9 @@
     {
         var sessionId = BeginNewSession();
         score = 0;
-        targetButton = -1;
-        statusMessage = $"Pregateste-te! Memorizeaza butonul aprins ({gridSize}x{gridSize}).";
+        sequence.Clear();
+        playerInputs.Clear();
+        statusMessage = $"Pregateste-te! Joc hard pe grila {gridSize}x{gridSize}.";
         canPlayerClick = false;
         highlightedButton = null;
         selectedButton = null;
@@ -130,24 +149,41 @@
             return;
         }
 
-        targetButton = random.Next(0, TotalButtons);
+        var targetLength = score + 1;
+        if (hardVariant == HardVariant.CumulativeOrder)
+        {
+            sequence.Add(random.Next(0, TotalButtons));
+        }
+        else
+        {
+            sequence.Clear();
+            for (var i = 0; i < targetLength; i++)
+            {
+                sequence.Add(random.Next(0, TotalButtons));
+            }
+        }
+
+        playerInputs.Clear();
         canPlayerClick = false;
-        statusMessage = isFirstRound
-            ? "Prima runda: priveste cu atentie."
-            : "Runda noua: priveste butonul aprins.";
+        statusMessage = hardVariant == HardVariant.CumulativeOrder
+            ? (isFirstRound
+                ? "Prima runda hard: retine secventa."
+                : "Runda noua hard: secventa s-a lungit.")
+            : (isFirstRound
+                ? "Prima runda hard random: retine secventa."
+                : "Runda noua hard random: secventa e noua.");
 
-        await PlayTargetButton(sessionId);
-
+        await PlaySequence(sessionId);
         if (IsStaleSession(sessionId))
         {
             return;
         }
 
-        statusMessage = "Randul tau: ghiceste butonul.";
+        statusMessage = "Randul tau: reproduce ordinea.";
         canPlayerClick = true;
     }
 
-    private async Task PlayTargetButton(int sessionId)
+    private async Task PlaySequence(int sessionId)
     {
         if (IsStaleSession(sessionId))
         {
@@ -156,20 +192,32 @@
 
         var highlightDurationMs = GetHighlightDurationMs();
         isPlayingSequence = true;
-        highlightedButton = targetButton;
-        StateHasChanged();
-        await Task.Delay(highlightDurationMs);
 
-        if (IsStaleSession(sessionId))
+        foreach (var buttonIndex in sequence.ToArray())
         {
+            if (IsStaleSession(sessionId))
+            {
+                highlightedButton = null;
+                isPlayingSequence = false;
+                return;
+            }
+
+            highlightedButton = buttonIndex;
+            StateHasChanged();
+            await Task.Delay(highlightDurationMs);
+
+            if (IsStaleSession(sessionId))
+            {
+                highlightedButton = null;
+                isPlayingSequence = false;
+                return;
+            }
+
             highlightedButton = null;
-            isPlayingSequence = false;
-            return;
+            StateHasChanged();
+            await Task.Delay(180);
         }
 
-        highlightedButton = null;
-        StateHasChanged();
-        await Task.Delay(220);
         isPlayingSequence = false;
     }
 
@@ -184,26 +232,29 @@
         selectedButton = buttonIndex;
         _ = ClearSelectedButtonAsync(buttonIndex, sessionId);
 
-        if (buttonIndex != targetButton)
+        playerInputs.Add(buttonIndex);
+        var expectedButton = sequence[playerInputs.Count - 1];
+
+        if (buttonIndex != expectedButton)
         {
             var reachedScore = score;
-            statusMessage = $"Ai gresit. Scor final: {reachedScore}.";
+            statusMessage = $"Ai gresit ordinea. Scor hard final: {reachedScore}.";
             canPlayerClick = false;
 
-            await ShowCenterMessageAsync("Ai gresit! Iti arat butonul corect.", 1300, sessionId);
+            await ShowCenterMessageAsync("Ai gresit ordinea! Iti arat secventa corecta.", 1300, sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
             }
 
-            statusMessage = "Butonul corect este afisat acum.";
-            await PlayTargetButton(sessionId);
+            statusMessage = "Secventa corecta este redata acum.";
+            await PlaySequence(sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
             }
 
-            await WaitForCenterActionAsync("Apasa butonul ca sa inceapa jocul.", sessionId);
+            await WaitForCenterActionAsync("Apasa butonul ca sa inceapa jocul hard.", sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
@@ -213,18 +264,21 @@
             return;
         }
 
-        score++;
-        GameState.RegisterScore(score, GameType.Normal);
-        statusMessage = "Corect! Urmeaza urmatorul buton.";
-        canPlayerClick = false;
-        await Task.Delay(650);
-
-        if (IsStaleSession(sessionId))
+        if (playerInputs.Count == sequence.Count)
         {
-            return;
-        }
+            score++;
+            GameState.RegisterScore(score, GameType.Hard);
+            statusMessage = "Corect! Urmeaza o secventa mai lunga.";
+            canPlayerClick = false;
+            await Task.Delay(650);
 
-        await StartNextRound(sessionId);
+            if (IsStaleSession(sessionId))
+            {
+                return;
+            }
+
+            await StartNextRound(sessionId);
+        }
     }
 
     private string GetCardClass(int buttonIndex)
@@ -238,7 +292,6 @@
     {
         if (colorMode == GameColorMode.Mono)
         {
-            // Keep the same base hue and only nudge lightness/saturation a bit.
             var variation = (buttonIndex % 9) - 4;
             var saturation = 58 + variation;
             var topLightness = 57 + variation;
@@ -315,24 +368,8 @@
 
     private int GetHighlightDurationMs()
     {
-        var duration = InitialHighlightDurationMs;
-
-        for (var i = 0; i < score; i++)
-        {
-            if (duration > 500)
-            {
-                duration -= 50;
-            }
-            else if (duration > 300)
-            {
-                duration -= 25;
-            }
-            else
-            {
-                duration -= 15;
-            }
-        }
-
+        var speedSteps = score / 5;
+        var duration = InitialHighlightDurationMs - (speedSteps * 50);
         return Math.Max(MinimumHighlightDurationMs, duration);
     }
 
@@ -356,7 +393,6 @@
 
         centerActionCompletion?.TrySetCanceled();
         centerActionCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
         centerMessage = message;
         showCenterMessage = true;
         showCenterActionButton = true;
@@ -399,7 +435,6 @@
             colorMode = selectedColorMode;
             monoHue = selectedMonoHue;
             _ = InvokeAsync(ResetForSelectedOptionsAsync);
-            return;
         }
     }
 
@@ -407,7 +442,8 @@
     {
         BeginNewSession();
         score = 0;
-        targetButton = -1;
+        sequence.Clear();
+        playerInputs.Clear();
         highlightedButton = null;
         selectedButton = null;
         canPlayerClick = false;
@@ -416,8 +452,44 @@
         showCenterActionButton = false;
         centerMessage = string.Empty;
         statusMessage = colorMode == GameColorMode.Mono
-            ? $"Setari actualizate ({gridSize}x{gridSize}, Mono). Apasa Start joc nou."
-            : $"Setari actualizate ({gridSize}x{gridSize}, Random). Apasa Start joc nou.";
+            ? $"Setari hard actualizate ({gridSize}x{gridSize}, Mono). Apasa Start joc hard."
+            : $"Setari hard actualizate ({gridSize}x{gridSize}, Random). Apasa Start joc hard.";
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private string GetHardVariantButtonClass(HardVariant variant)
+    {
+        return variant == hardVariant ? "simon-hard-variant-btn active" : "simon-hard-variant-btn";
+    }
+
+    private static string GetHardVariantLabel(HardVariant variant)
+    {
+        return variant == HardVariant.CumulativeOrder ? "Cumulativ" : "Random per nivel";
+    }
+
+    private Task SetHardVariant(HardVariant variant)
+    {
+        if (variant == hardVariant)
+        {
+            return Task.CompletedTask;
+        }
+
+        hardVariant = variant;
+        BeginNewSession();
+        score = 0;
+        sequence.Clear();
+        playerInputs.Clear();
+        highlightedButton = null;
+        selectedButton = null;
+        canPlayerClick = false;
+        isPlayingSequence = false;
+        showCenterMessage = false;
+        showCenterActionButton = false;
+        centerMessage = string.Empty;
+        statusMessage = variant == HardVariant.CumulativeOrder
+            ? "Varianta hard: Cumulativ. Apasa Start joc hard."
+            : "Varianta hard: Random per nivel. Apasa Start joc hard.";
         StateHasChanged();
         return Task.CompletedTask;
     }
