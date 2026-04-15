@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @using SimonGame.Services
+@using System.Globalization
+@using System.Linq
 @inject GameSessionState GameState
 
 <PageTitle>FlashFocus</PageTitle>
@@ -26,6 +28,7 @@
         <div class="simon-status-panel">
             <p class="simon-status-message">@statusMessage</p>
             <div class="simon-status-cards">
+                <p class="simon-phase-pill @GetPhaseClass()">Faza: <strong>@GetPhaseLabel()</strong></p>
                 <p class="simon-level-pill">Scor hard: <strong>@score</strong></p>
                 <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
                 <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
@@ -43,6 +46,35 @@
                             @onclick="() => OnPlayerClick(buttonIndex)">
                     </button>
                 }
+            </div>
+        </div>
+
+        <div class="simon-stats-panel">
+            <h3>Statistici runde (Hard)</h3>
+            <div class="simon-stats-table-wrap">
+                <table class="simon-stats-table">
+                    <thead>
+                        <tr>
+                            <th>Ora</th>
+                            <th>Runda</th>
+                            <th>Rezultat</th>
+                            <th>Raspuns</th>
+                            <th>Timp total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in GetRecentStats())
+                        {
+                            <tr class="@(row.Correct ? "ok" : "fail")">
+                                <td>@row.CreatedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                <td>@row.Round</td>
+                                <td>@(row.Correct ? "Corect" : "Gresit")</td>
+                                <td>@FormatMs(row.ResponseMs)</td>
+                                <td>@FormatMs(row.ElapsedMs)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -70,10 +102,32 @@
             <p class="simon-center-message-text">@centerMessage</p>
             @if (showCenterActionButton)
             {
-                <button class="simon-start-btn simon-center-action-btn" @onclick="OnCenterActionClick">
-                    Incepe jocul
-                </button>
+                <div class="simon-center-actions">
+                    <button class="simon-start-btn simon-center-action-btn" @onclick="OnCenterActionClick">
+                        Incepe jocul
+                    </button>
+                    <button class="simon-secondary-btn simon-center-action-btn" @onclick="OnCenterExitClick">
+                        Iesi
+                    </button>
+                </div>
             }
+        </div>
+    </div>
+}
+
+@if (showRecordCelebration)
+{
+    <div class="simon-overlay" role="alert" aria-live="assertive">
+        <div class="simon-overlay-content simon-record-overlay">
+            <div class="bomb-wrap" aria-hidden="true">
+                <div class="bomb-body"></div>
+                <div class="bomb-fuse"></div>
+                <div class="bomb-spark"></div>
+                <div class="bomb-ring bomb-ring-1"></div>
+                <div class="bomb-ring bomb-ring-2"></div>
+                <div class="bomb-ring bomb-ring-3"></div>
+            </div>
+            <p class="simon-record-title">Felicitari, ai batut recordul!</p>
         </div>
     </div>
 }
@@ -97,6 +151,8 @@
     private int? highlightedButton;
     private int? selectedButton;
     private int score;
+    private DateTimeOffset runStartedAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset roundInputStartedAt = DateTimeOffset.UtcNow;
     private int gameSessionId;
     private bool isPlayingSequence;
     private bool canPlayerClick;
@@ -104,9 +160,11 @@
     private bool showIntroMessage = true;
     private bool showCenterMessage;
     private bool showCenterActionButton;
+    private bool showRecordCelebration;
     private string centerMessage = string.Empty;
     private TaskCompletionSource<bool>? centerActionCompletion;
     private HardVariant hardVariant = HardVariant.CumulativeOrder;
+    private int runStartingHighScore;
     private int TotalButtons => gridSize * gridSize;
     private static readonly HardVariant[] HardVariants = [HardVariant.CumulativeOrder, HardVariant.FreshRandomEachLevel];
 
@@ -128,6 +186,8 @@
     {
         var sessionId = BeginNewSession();
         score = 0;
+        runStartingHighScore = GameState.HighScore;
+        runStartedAt = DateTimeOffset.UtcNow;
         sequence.Clear();
         playerInputs.Clear();
         statusMessage = $"Pregateste-te! Joc hard pe grila {gridSize}x{gridSize}.";
@@ -136,6 +196,7 @@
         selectedButton = null;
         showCenterMessage = false;
         showCenterActionButton = false;
+        showRecordCelebration = false;
         centerMessage = string.Empty;
         centerActionCompletion?.TrySetCanceled();
         centerActionCompletion = null;
@@ -181,6 +242,7 @@
 
         statusMessage = "Randul tau: reproduce ordinea.";
         canPlayerClick = true;
+        roundInputStartedAt = DateTimeOffset.UtcNow;
     }
 
     private async Task PlaySequence(int sessionId)
@@ -233,6 +295,9 @@
         _ = ClearSelectedButtonAsync(buttonIndex, sessionId);
 
         playerInputs.Add(buttonIndex);
+        var roundNumber = score + 1;
+        var responseMs = GetDurationMs(roundInputStartedAt);
+        var elapsedMs = GetDurationMs(runStartedAt);
         var expectedButton = sequence[playerInputs.Count - 1];
 
         if (buttonIndex != expectedButton)
@@ -240,6 +305,14 @@
             var reachedScore = score;
             statusMessage = $"Ai gresit ordinea. Scor hard final: {reachedScore}.";
             canPlayerClick = false;
+            GameState.AddStat(new GameStatEntry(
+                DateTimeOffset.UtcNow,
+                GameType.Hard,
+                $"{gridSize}x{gridSize} {hardVariant}",
+                roundNumber,
+                false,
+                responseMs,
+                elapsedMs));
 
             await ShowCenterMessageAsync("Ai gresit ordinea! Iti arat secventa corecta.", 1300, sessionId);
             if (IsStaleSession(sessionId))
@@ -254,13 +327,29 @@
                 return;
             }
 
-            await WaitForCenterActionAsync("Apasa butonul ca sa inceapa jocul hard.", sessionId);
+            if (score > runStartingHighScore)
+            {
+                await ShowRecordCelebrationAsync(sessionId);
+                if (IsStaleSession(sessionId))
+                {
+                    return;
+                }
+            }
+
+            var shouldRestart = await WaitForCenterActionAsync("Apasa butonul ca sa inceapa jocul hard.", sessionId);
             if (IsStaleSession(sessionId))
             {
                 return;
             }
 
-            await StartNewGame();
+            if (shouldRestart)
+            {
+                await StartNewGame();
+            }
+            else
+            {
+                statusMessage = "Joc hard oprit. Apasa Start joc hard cand vrei sa continui.";
+            }
             return;
         }
 
@@ -353,6 +442,26 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task ShowRecordCelebrationAsync(int sessionId)
+    {
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        showRecordCelebration = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(8000);
+
+        if (IsStaleSession(sessionId))
+        {
+            return;
+        }
+
+        showRecordCelebration = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
     private int BeginNewSession()
     {
         centerActionCompletion?.TrySetCanceled();
@@ -384,11 +493,11 @@
         };
     }
 
-    private async Task WaitForCenterActionAsync(string message, int sessionId)
+    private async Task<bool> WaitForCenterActionAsync(string message, int sessionId)
     {
         if (IsStaleSession(sessionId))
         {
-            return;
+            return false;
         }
 
         centerActionCompletion?.TrySetCanceled();
@@ -400,27 +509,33 @@
 
         try
         {
-            await centerActionCompletion.Task;
+            var accepted = await centerActionCompletion.Task;
+
+            if (IsStaleSession(sessionId))
+            {
+                return false;
+            }
+
+            showCenterMessage = false;
+            showCenterActionButton = false;
+            centerActionCompletion = null;
+            await InvokeAsync(StateHasChanged);
+            return accepted;
         }
         catch (TaskCanceledException)
         {
-            return;
+            return false;
         }
-
-        if (IsStaleSession(sessionId))
-        {
-            return;
-        }
-
-        showCenterMessage = false;
-        showCenterActionButton = false;
-        centerActionCompletion = null;
-        await InvokeAsync(StateHasChanged);
     }
 
     private void OnCenterActionClick()
     {
         centerActionCompletion?.TrySetResult(true);
+    }
+
+    private void OnCenterExitClick()
+    {
+        centerActionCompletion?.TrySetResult(false);
     }
 
     private void OnGameStateChanged()
@@ -450,6 +565,7 @@
         isPlayingSequence = false;
         showCenterMessage = false;
         showCenterActionButton = false;
+        showRecordCelebration = false;
         centerMessage = string.Empty;
         statusMessage = colorMode == GameColorMode.Mono
             ? $"Setari hard actualizate ({gridSize}x{gridSize}, Mono). Apasa Start joc hard."
@@ -492,5 +608,40 @@
             : "Varianta hard: Random per nivel. Apasa Start joc hard.";
         StateHasChanged();
         return Task.CompletedTask;
+    }
+
+    private string GetPhaseLabel()
+    {
+        if (isPlayingSequence)
+        {
+            return "Priveste";
+        }
+
+        if (canPlayerClick)
+        {
+            return "Reproduce";
+        }
+
+        return "Pauza";
+    }
+
+    private string GetPhaseClass()
+    {
+        return isPlayingSequence ? "watch" : canPlayerClick ? "input" : "pause";
+    }
+
+    private IReadOnlyList<GameStatEntry> GetRecentStats()
+    {
+        return GameState.GetStats(GameType.Hard).Take(12).ToList();
+    }
+
+    private static string FormatMs(int valueMs)
+    {
+        return $"{valueMs / 1000.0:0.00}s";
+    }
+
+    private static int GetDurationMs(DateTimeOffset from)
+    {
+        return (int)Math.Max(0, (DateTimeOffset.UtcNow - from).TotalMilliseconds);
     }
 }

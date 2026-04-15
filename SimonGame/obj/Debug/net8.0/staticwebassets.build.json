@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "evmI5LX+GZ8rVeg2d9OrtKU7RM8oOsBok+gdMU1K2SA=",
+  "Hash": "MP4b4ywqfULlvobsEOCGbNEyjRd4vm5a7HbTOyNWJgc=",
   "Source": "SimonGame",
   "BasePath": "_content/SimonGame",
   "Mode": "Default",
@@ -129,6 +129,25 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\favicon.png"
+    },
+    {
+      "Identity": "C:\\Joc\\SimonGame\\wwwroot\\logo.png",
+      "SourceId": "SimonGame",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Joc\\SimonGame\\wwwroot\\",
+      "BasePath": "_content/SimonGame",
+      "RelativePath": "logo.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\logo.png"
     }
   ]
 }

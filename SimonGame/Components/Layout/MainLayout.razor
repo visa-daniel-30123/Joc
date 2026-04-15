@@ -10,37 +10,45 @@
 
     <main>
         <div class="top-row px-4 main-top-row">
-            <div class="main-mode-switch">
-                <span class="main-mode-label">Mode:</span>
-                @foreach (var size in GameSessionState.SupportedGridSizes)
-                {
-                    <button class="@GetModeButtonClass(size)" @onclick="() => SetGridSize(size)">
-                        @($"{size}x{size}")
-                    </button>
-                }
-            </div>
-            <div class="main-mode-switch">
-                <span class="main-mode-label">Color:</span>
-                @foreach (var colorMode in GameSessionState.SupportedColorModes)
-                {
-                    <button class="@GetColorModeButtonClass(colorMode)" @onclick="() => SetColorMode(colorMode)">
-                        @GetColorModeLabel(colorMode)
-                    </button>
-                }
-            </div>
-            @if (GameState.ColorMode == GameColorMode.Mono)
-            {
+            <div class="main-control-card">
+                <span class="main-group-title">Grid</span>
                 <div class="main-mode-switch">
-                    <span class="main-mode-label">Mono hue:</span>
-                    @foreach (var option in GameSessionState.SupportedMonoColors)
+                    @foreach (var size in GameSessionState.SupportedGridSizes)
                     {
-                        <button class="@GetMonoColorButtonClass(option.Hue)" @onclick="() => SetMonoHue(option.Hue)">
-                            @option.Label
+                        <button class="@GetModeButtonClass(size)" @onclick="() => SetGridSize(size)">
+                            @($"{size}x{size}")
                         </button>
                     }
                 </div>
-            }
-            <span class="main-high-score">High score @GetGameTypeLabel(GameState.ActiveGameType) @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
+            </div>
+
+            <div class="main-control-card">
+                <span class="main-group-title">Color</span>
+                <div class="main-mode-switch">
+                    @foreach (var colorMode in GameSessionState.SupportedColorModes)
+                    {
+                        <button class="@GetColorModeButtonClass(colorMode)" @onclick="() => SetColorMode(colorMode)">
+                            @GetColorModeLabel(colorMode)
+                        </button>
+                    }
+                </div>
+                @if (GameState.ColorMode == GameColorMode.Mono)
+                {
+                    <div class="main-mode-switch main-sub-switch">
+                        @foreach (var option in GameSessionState.SupportedMonoColors)
+                        {
+                            <button class="@GetMonoColorButtonClass(option.Hue)" @onclick="() => SetMonoHue(option.Hue)">
+                                @option.Label
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="main-control-card main-high-score-card">
+                <span class="main-group-title">Best</span>
+                <span class="main-high-score">High score @GetGameTypeLabel(GameState.ActiveGameType) @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
+            </div>
         </div>
 
         <article class="content px-4">

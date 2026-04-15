@@ -13,6 +13,14 @@ public enum GameType
 }
 
 public readonly record struct MonoColorOption(string Label, int Hue);
+public readonly record struct GameStatEntry(
+    DateTimeOffset CreatedAt,
+    GameType GameType,
+    string RunLabel,
+    int Round,
+    bool Correct,
+    int ResponseMs,
+    int ElapsedMs);
 
 public sealed class GameSessionState
 {
@@ -37,6 +45,8 @@ public sealed class GameSessionState
         Enum.GetValues<GameType>()
             .SelectMany(type => SupportedGridSizes.Select(size => ((Type: type, GridSize: size), 0)))
             .ToDictionary(item => item.Item1, item => item.Item2);
+    private readonly Dictionary<GameType, List<GameStatEntry>> statsByGameType =
+        Enum.GetValues<GameType>().ToDictionary(type => type, _ => new List<GameStatEntry>());
 
     public event Action? Changed;
 
@@ -99,6 +109,25 @@ public sealed class GameSessionState
         }
 
         ActiveGameType = gameType;
+        Changed?.Invoke();
+    }
+
+    public IReadOnlyList<GameStatEntry> GetStats(GameType gameType)
+    {
+        return statsByGameType[gameType];
+    }
+
+    public void AddStat(GameStatEntry entry)
+    {
+        var list = statsByGameType[entry.GameType];
+        list.Insert(0, entry);
+
+        // Keep the last 120 rows so UI stays snappy.
+        if (list.Count > 120)
+        {
+            list.RemoveRange(120, list.Count - 120);
+        }
+
         Changed?.Invoke();
     }
 }

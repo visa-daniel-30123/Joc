@@ -1,5 +1,12 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    min-height: 100%;
+    background:
+        radial-gradient(circle at 12% 10%, rgb(127 174 255 / 0.45) 0%, rgb(127 174 255 / 0) 38%),
+        radial-gradient(circle at 86% 14%, rgb(109 230 255 / 0.32) 0%, rgb(109 230 255 / 0) 36%),
+        radial-gradient(circle at 58% 90%, rgb(188 158 255 / 0.28) 0%, rgb(188 158 255 / 0) 42%),
+        linear-gradient(160deg, #edf3ff 0%, #eaf0ff 48%, #eef6ff 100%);
+    background-attachment: fixed;
 }
 
 a, .btn-link {
@@ -51,21 +58,53 @@ h1:focus {
 }
 
 .simon-page {
-    min-height: 0;
+    min-height: calc(100vh - 6rem);
     display: flex;
     justify-content: center;
+    align-items: center;
     padding: 2px 0 8px;
-    background: radial-gradient(circle at 10% 5%, #e0ecff 0%, #f5f8ff 42%, #eef3ff 100%);
+    background: transparent;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+}
+
+.simon-page::before,
+.simon-page::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    filter: blur(3px);
+    z-index: -1;
+}
+
+.simon-page::before {
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    left: -130px;
+    top: -90px;
+    background: radial-gradient(circle, rgb(82 138 255 / 0.36) 0%, rgb(82 138 255 / 0) 68%);
+}
+
+.simon-page::after {
+    width: 460px;
+    height: 460px;
+    border-radius: 50%;
+    right: -150px;
+    bottom: -180px;
+    background: radial-gradient(circle, rgb(152 102 255 / 0.27) 0%, rgb(152 102 255 / 0) 70%);
 }
 
 .simon-shell {
     width: min(860px, 100%);
     padding: 10px;
     border-radius: 14px;
-    background: rgb(255 255 255 / 0.68);
-    border: 1px solid rgb(255 255 255 / 0.65);
-    box-shadow: 0 18px 45px rgb(24 44 78 / 0.18);
-    backdrop-filter: blur(6px);
+    background: rgb(255 255 255 / 0.72);
+    border: 1px solid rgb(255 255 255 / 0.78);
+    box-shadow: 0 22px 52px rgb(24 44 78 / 0.2);
+    backdrop-filter: blur(8px);
+    margin: 0 auto;
 }
 
 .simon-top-bar {
@@ -157,7 +196,38 @@ h1:focus {
     margin: 0;
     font-weight: 700;
     color: #1f3657;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f7fbff;
+    border: 1px solid #dce9ff;
+}
+
+.simon-phase-pill {
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.simon-phase-pill.watch {
+    background: #fff7e8;
+    border-color: #ffe1a9;
+    color: #8a5a00;
+}
+
+.simon-phase-pill.input {
+    background: #eaf8ef;
+    border-color: #bee8cd;
+    color: #15633b;
+}
+
+.simon-phase-pill.pause {
+    background: #edf1f8;
+    border-color: #d2d9e7;
+    color: #4a5a76;
 }
 
 .simon-level-pill {
@@ -235,8 +305,56 @@ h1:focus {
 }
 
 .simon-grid-wrapper {
-    overflow-x: auto;
+    overflow: auto;
     padding-bottom: 4px;
+    display: flex;
+    justify-content: center;
+}
+
+.simon-stats-panel {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgb(247 251 255 / 0.88);
+    border: 1px solid #dbe8ff;
+}
+
+.simon-stats-panel h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    color: #1a3e67;
+}
+
+.simon-stats-table-wrap {
+    overflow-x: auto;
+}
+
+.simon-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.simon-stats-table th,
+.simon-stats-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid #e2ebfb;
+    white-space: nowrap;
+}
+
+.simon-stats-table thead th {
+    color: #3b587f;
+    font-weight: 700;
+    background: #f3f8ff;
+}
+
+.simon-stats-table tr.ok td {
+    color: #21583a;
+}
+
+.simon-stats-table tr.fail td {
+    color: #8a2b2b;
 }
 
 .simon-grid {
@@ -278,6 +396,138 @@ h1:focus {
 
 .simon-center-action-btn {
     margin-top: 12px;
+}
+
+.simon-center-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.simon-secondary-btn {
+    border: 1px solid #c6d8f5;
+    background: #f5f8ff;
+    color: #24456e;
+    box-shadow: none;
+}
+
+.simon-secondary-btn:hover {
+    background: #edf4ff;
+    filter: none;
+    box-shadow: none;
+}
+
+.simon-record-overlay {
+    min-width: min(420px, 90vw);
+}
+
+.simon-record-title {
+    margin: 14px 0 0;
+    font-size: 1.06rem;
+    color: #12385f;
+    font-weight: 800;
+}
+
+.bomb-wrap {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+}
+
+.bomb-body {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 56px;
+    height: 56px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #6a7689 0%, #404b5d 65%, #2f3948 100%);
+    box-shadow: 0 8px 18px rgb(16 28 48 / 0.35);
+    animation: bombPop 0.5s ease-out;
+}
+
+.bomb-fuse {
+    position: absolute;
+    left: 58%;
+    top: 24px;
+    width: 22px;
+    height: 10px;
+    border-top: 3px solid #735639;
+    border-right: 3px solid #735639;
+    border-radius: 0 10px 0 0;
+}
+
+.bomb-spark {
+    position: absolute;
+    left: 74%;
+    top: 12px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff6b0 0%, #ffce3a 45%, #ff8a00 100%);
+    box-shadow: 0 0 16px rgb(255 175 42 / 0.85);
+    animation: sparkPulse 0.35s ease-in-out infinite alternate;
+}
+
+.bomb-ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid rgb(255 185 72 / 0.8);
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+}
+
+.bomb-ring-1 {
+    animation: ringBurst 1.2s ease-out 0.35s infinite;
+}
+
+.bomb-ring-2 {
+    animation: ringBurst 1.2s ease-out 0.55s infinite;
+}
+
+.bomb-ring-3 {
+    animation: ringBurst 1.2s ease-out 0.75s infinite;
+}
+
+@keyframes bombPop {
+    0% {
+        transform: translate(-50%, -50%) scale(0.7);
+    }
+    60% {
+        transform: translate(-50%, -50%) scale(1.08);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes sparkPulse {
+    from {
+        transform: scale(0.9);
+        opacity: 0.8;
+    }
+    to {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+@keyframes ringBurst {
+    0% {
+        transform: translate(-50%, -50%) scale(0.2);
+        opacity: 0.85;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(3.2);
+        opacity: 0;
+    }
 }
 
 .simon-intro-content {
