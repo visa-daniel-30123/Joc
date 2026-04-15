@@ -75,6 +75,8 @@
     private const int MinimumHighlightDurationMs = 120;
 
     private int gridSize = 5;
+    private GameColorMode colorMode = GameColorMode.Random;
+    private int monoHue = 212;
     private int? highlightedButton;
     private int? selectedButton;
     private int targetButton = -1;
@@ -93,6 +95,8 @@
     protected override void OnInitialized()
     {
         gridSize = GameState.GridSize;
+        colorMode = GameState.ColorMode;
+        monoHue = GameState.MonoHue;
         GameState.Changed += OnGameStateChanged;
     }
 
@@ -231,6 +235,16 @@
 
     private string GetCardStyle(int buttonIndex)
     {
+        if (colorMode == GameColorMode.Mono)
+        {
+            // Keep the same base hue and only nudge lightness/saturation a bit.
+            var variation = (buttonIndex % 9) - 4;
+            var saturation = 58 + variation;
+            var topLightness = 57 + variation;
+            var bottomLightness = 47 + variation;
+            return $"background: linear-gradient(145deg, hsl({monoHue} {saturation}% {topLightness}%) 0%, hsl({monoHue} {Math.Max(45, saturation - 6)}% {bottomLightness}%) 100%);";
+        }
+
         var hue = (buttonIndex * 360 / TotalButtons) % 360;
         return $"background-color: hsl({hue} 72% 52%);";
     }
@@ -375,16 +389,20 @@
     private void OnGameStateChanged()
     {
         var selectedGridSize = GameState.GridSize;
-        if (selectedGridSize == gridSize)
+        var selectedColorMode = GameState.ColorMode;
+        var selectedMonoHue = GameState.MonoHue;
+
+        if (selectedGridSize != gridSize || selectedColorMode != colorMode || selectedMonoHue != monoHue)
         {
+            gridSize = selectedGridSize;
+            colorMode = selectedColorMode;
+            monoHue = selectedMonoHue;
+            _ = InvokeAsync(ResetForSelectedOptionsAsync);
             return;
         }
-
-        gridSize = selectedGridSize;
-        _ = InvokeAsync(ResetForSelectedModeAsync);
     }
 
-    private Task ResetForSelectedModeAsync()
+    private Task ResetForSelectedOptionsAsync()
     {
         BeginNewSession();
         score = 0;
@@ -396,7 +414,9 @@
         showCenterMessage = false;
         showCenterActionButton = false;
         centerMessage = string.Empty;
-        statusMessage = $"Mod selectat: {gridSize}x{gridSize}. Apasa Start joc nou.";
+        statusMessage = colorMode == GameColorMode.Mono
+            ? $"Setari actualizate ({gridSize}x{gridSize}, Mono). Apasa Start joc nou."
+            : $"Setari actualizate ({gridSize}x{gridSize}, Random). Apasa Start joc nou.";
         StateHasChanged();
         return Task.CompletedTask;
     }

@@ -19,6 +19,27 @@
                     </button>
                 }
             </div>
+            <div class="main-mode-switch">
+                <span class="main-mode-label">Color:</span>
+                @foreach (var colorMode in GameSessionState.SupportedColorModes)
+                {
+                    <button class="@GetColorModeButtonClass(colorMode)" @onclick="() => SetColorMode(colorMode)">
+                        @GetColorModeLabel(colorMode)
+                    </button>
+                }
+            </div>
+            @if (GameState.ColorMode == GameColorMode.Mono)
+            {
+                <div class="main-mode-switch">
+                    <span class="main-mode-label">Mono hue:</span>
+                    @foreach (var option in GameSessionState.SupportedMonoColors)
+                    {
+                        <button class="@GetMonoColorButtonClass(option.Hue)" @onclick="() => SetMonoHue(option.Hue)">
+                            @option.Label
+                        </button>
+                    }
+                </div>
+            }
             <span class="main-high-score">High score @($"{GameState.GridSize}x{GameState.GridSize}"): @GameState.HighScore</span>
         </div>
 
@@ -44,9 +65,34 @@
         GameState.SetGridSize(size);
     }
 
+    private void SetColorMode(GameColorMode colorMode)
+    {
+        GameState.SetColorMode(colorMode);
+    }
+
     private string GetModeButtonClass(int size)
     {
         return size == GameState.GridSize ? "main-mode-btn active" : "main-mode-btn";
+    }
+
+    private string GetColorModeButtonClass(GameColorMode colorMode)
+    {
+        return colorMode == GameState.ColorMode ? "main-mode-btn active" : "main-mode-btn";
+    }
+
+    private string GetMonoColorButtonClass(int hue)
+    {
+        return hue == GameState.MonoHue ? "main-mode-btn active" : "main-mode-btn";
+    }
+
+    private static string GetColorModeLabel(GameColorMode colorMode)
+    {
+        return colorMode == GameColorMode.Mono ? "Mono" : "Random";
+    }
+
+    private void SetMonoHue(int hue)
+    {
+        GameState.SetMonoHue(hue);
     }
 
     public void Dispose()
