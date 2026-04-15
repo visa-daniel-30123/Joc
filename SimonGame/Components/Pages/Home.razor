@@ -20,7 +20,9 @@
             <p class="simon-status-message">@statusMessage</p>
             <div class="simon-status-cards">
                 <p class="simon-phase-pill @GetPhaseClass()">Faza: <strong>@GetPhaseLabel()</strong></p>
-                <p class="simon-level-pill">Scor: <strong>@score</strong></p>
+                <p class="simon-level-pill">Scor baza: <strong>@score</strong></p>
+                <p class="simon-speed-pill">Bonus: <strong>@bonusTotal.ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
+                <p class="simon-level-pill">Total: <strong>@GetTotalScore().ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
                 <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
                 <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
             </div>
@@ -50,6 +52,7 @@
                             <th>Runda</th>
                             <th>Raspuns</th>
                             <th>Timp total</th>
+                            <th>Scor</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -60,6 +63,7 @@
                                 <td>@row.Round</td>
                                 <td>@FormatMs(row.ResponseMs)</td>
                                 <td>@FormatMs(row.ElapsedMs)</td>
+                                <td>@row.Score</td>
                             </tr>
                         }
                     </tbody>
@@ -133,10 +137,13 @@
     private int? selectedButton;
     private int targetButton = -1;
     private int score;
+    private double bonusTotal;
     private DateTimeOffset runStartedAt = DateTimeOffset.UtcNow;
     private DateTimeOffset roundInputStartedAt = DateTimeOffset.UtcNow;
     private int runSuccessfulResponseTotalMs;
     private int runSuccessfulResponseCount;
+    private int runAllResponseTotalMs;
+    private int runAllResponseCount;
     private int gameSessionId;
     private bool isPlayingSequence;
     private bool canPlayerClick;
@@ -168,10 +175,13 @@
     {
         var sessionId = BeginNewSession();
         score = 0;
+        bonusTotal = 0;
         runStartingHighScore = GameState.HighScore;
         runStartedAt = DateTimeOffset.UtcNow;
         runSuccessfulResponseTotalMs = 0;
         runSuccessfulResponseCount = 0;
+        runAllResponseTotalMs = 0;
+        runAllResponseCount = 0;
         targetButton = -1;
         statusMessage = $"Pregateste-te! Memorizeaza butonul aprins ({gridSize}x{gridSize}).";
         canPlayerClick = false;
@@ -250,6 +260,9 @@
         var roundNumber = score + 1;
         var responseMs = GetDurationMs(roundInputStartedAt);
         var elapsedMs = GetDurationMs(runStartedAt);
+        var averageForBonusMs = (runAllResponseTotalMs + responseMs) / (double)(runAllResponseCount + 1);
+        var speedMultiplier = GetSpeedMultiplier(averageForBonusMs);
+        var roundBonus = (roundNumber / 10.0) * speedMultiplier;
         var averageResponseMs = runSuccessfulResponseCount > 0
             ? runSuccessfulResponseTotalMs / runSuccessfulResponseCount
             : responseMs;
@@ -257,7 +270,7 @@
         if (buttonIndex != targetButton)
         {
             var reachedScore = score;
-            statusMessage = $"Ai gresit. Scor final: {reachedScore}.";
+            statusMessage = $"Ai gresit. Scor final: {reachedScore} + bonus {bonusTotal:0.00} = {GetTotalScore():0.00}.";
             canPlayerClick = false;
             GameState.AddStat(new GameStatEntry(
                 DateTimeOffset.UtcNow,
@@ -266,7 +279,10 @@
                 roundNumber,
                 false,
                 averageResponseMs,
-                elapsedMs));
+                elapsedMs,
+                GetTotalScoreRounded()));
+            runAllResponseTotalMs += responseMs;
+            runAllResponseCount++;
 
             await ShowCenterMessageAsync("Ai gresit! Iti arat butonul corect.", 1300, sessionId);
             if (IsStaleSession(sessionId))
@@ -281,7 +297,7 @@
                 return;
             }
 
-            if (score > runStartingHighScore)
+            if (runStartingHighScore > 0 && GetTotalScoreRounded() > runStartingHighScore)
             {
                 await ShowRecordCelebrationAsync(sessionId);
                 if (IsStaleSession(sessionId))
@@ -308,10 +324,13 @@
         }
 
         score++;
+        bonusTotal += roundBonus;
         runSuccessfulResponseTotalMs += responseMs;
         runSuccessfulResponseCount++;
-        GameState.RegisterScore(score, GameType.Normal);
-        statusMessage = "Corect! Urmeaza urmatorul buton.";
+        runAllResponseTotalMs += responseMs;
+        runAllResponseCount++;
+        GameState.RegisterScore(GetTotalScoreRounded(), GameType.Normal);
+        statusMessage = $"Corect! Bonus runda +{roundBonus:0.00} (x{speedMultiplier}, medie {averageForBonusMs / 1000.0:0.00}s, cumulat: {bonusTotal:0.00}).";
         canPlayerClick = false;
         await Task.Delay(650);
 
@@ -529,9 +548,12 @@
     {
         BeginNewSession();
         score = 0;
+        bonusTotal = 0;
         targetButton = -1;
         runSuccessfulResponseTotalMs = 0;
         runSuccessfulResponseCount = 0;
+        runAllResponseTotalMs = 0;
+        runAllResponseCount = 0;
         highlightedButton = null;
         selectedButton = null;
         canPlayerClick = false;
@@ -567,6 +589,16 @@
         return isPlayingSequence ? "watch" : canPlayerClick ? "input" : "pause";
     }
 
+    private double GetTotalScore()
+    {
+        return score + bonusTotal;
+    }
+
+    private int GetTotalScoreRounded()
+    {
+        return (int)Math.Round(GetTotalScore(), MidpointRounding.AwayFromZero);
+    }
+
     private IReadOnlyList<GameStatEntry> GetRecentStats()
     {
         return GameState.GetStats(GameType.Normal).Take(12).ToList();
@@ -580,5 +612,30 @@
     private static int GetDurationMs(DateTimeOffset from)
     {
         return (int)Math.Max(0, (DateTimeOffset.UtcNow - from).TotalMilliseconds);
+    }
+
+    private static int GetSpeedMultiplier(double averageResponseMs)
+    {
+        if (averageResponseMs < 200)
+        {
+            return 5;
+        }
+
+        if (averageResponseMs < 300)
+        {
+            return 4;
+        }
+
+        if (averageResponseMs < 500)
+        {
+            return 3;
+        }
+
+        if (averageResponseMs < 1000)
+        {
+            return 2;
+        }
+
+        return 1;
     }
 }

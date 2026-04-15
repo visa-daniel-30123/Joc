@@ -29,7 +29,9 @@
             <p class="simon-status-message">@statusMessage</p>
             <div class="simon-status-cards">
                 <p class="simon-phase-pill @GetPhaseClass()">Faza: <strong>@GetPhaseLabel()</strong></p>
-                <p class="simon-level-pill">Scor hard: <strong>@score</strong></p>
+                <p class="simon-level-pill">Scor hard baza: <strong>@score</strong></p>
+                <p class="simon-speed-pill">Bonus: <strong>@bonusTotal.ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
+                <p class="simon-level-pill">Total: <strong>@GetTotalScore().ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
                 <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
                 <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
             </div>
@@ -57,20 +59,20 @@
                         <tr>
                             <th>Ora</th>
                             <th>Runda</th>
-                            <th>Rezultat</th>
                             <th>Raspuns</th>
                             <th>Timp total</th>
+                            <th>Scor</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in GetRecentStats())
                         {
-                            <tr class="@(row.Correct ? "ok" : "fail")">
+                            <tr>
                                 <td>@row.CreatedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)</td>
                                 <td>@row.Round</td>
-                                <td>@(row.Correct ? "Corect" : "Gresit")</td>
                                 <td>@FormatMs(row.ResponseMs)</td>
                                 <td>@FormatMs(row.ElapsedMs)</td>
+                                <td>@row.Score</td>
                             </tr>
                         }
                     </tbody>
@@ -151,8 +153,11 @@
     private int? highlightedButton;
     private int? selectedButton;
     private int score;
+    private double bonusTotal;
     private DateTimeOffset runStartedAt = DateTimeOffset.UtcNow;
     private DateTimeOffset roundInputStartedAt = DateTimeOffset.UtcNow;
+    private double runRoundAverageTotalMs;
+    private int runRoundAverageCount;
     private int gameSessionId;
     private bool isPlayingSequence;
     private bool canPlayerClick;
@@ -186,8 +191,11 @@
     {
         var sessionId = BeginNewSession();
         score = 0;
+        bonusTotal = 0;
         runStartingHighScore = GameState.HighScore;
         runStartedAt = DateTimeOffset.UtcNow;
+        runRoundAverageTotalMs = 0;
+        runRoundAverageCount = 0;
         sequence.Clear();
         playerInputs.Clear();
         statusMessage = $"Pregateste-te! Joc hard pe grila {gridSize}x{gridSize}.";
@@ -296,14 +304,16 @@
 
         playerInputs.Add(buttonIndex);
         var roundNumber = score + 1;
-        var responseMs = GetDurationMs(roundInputStartedAt);
         var elapsedMs = GetDurationMs(runStartedAt);
+        var roundAverageMs = GetRoundAverageMs();
+        var averageForBonusMs = (runRoundAverageTotalMs + roundAverageMs) / (runRoundAverageCount + 1);
+        var speedMultiplier = GetSpeedMultiplier(averageForBonusMs);
         var expectedButton = sequence[playerInputs.Count - 1];
 
         if (buttonIndex != expectedButton)
         {
             var reachedScore = score;
-            statusMessage = $"Ai gresit ordinea. Scor hard final: {reachedScore}.";
+            statusMessage = $"Ai gresit ordinea. Scor hard final: {reachedScore} + bonus {bonusTotal:0.00} = {GetTotalScore():0.00}.";
             canPlayerClick = false;
             GameState.AddStat(new GameStatEntry(
                 DateTimeOffset.UtcNow,
@@ -311,8 +321,11 @@
                 $"{gridSize}x{gridSize} {hardVariant}",
                 roundNumber,
                 false,
-                responseMs,
-                elapsedMs));
+                (int)Math.Round(averageForBonusMs, MidpointRounding.AwayFromZero),
+                elapsedMs,
+                GetTotalScoreRounded()));
+            runRoundAverageTotalMs += roundAverageMs;
+            runRoundAverageCount++;
 
             await ShowCenterMessageAsync("Ai gresit ordinea! Iti arat secventa corecta.", 1300, sessionId);
             if (IsStaleSession(sessionId))
@@ -327,7 +340,7 @@
                 return;
             }
 
-            if (score > runStartingHighScore)
+            if (runStartingHighScore > 0 && GetTotalScoreRounded() > runStartingHighScore)
             {
                 await ShowRecordCelebrationAsync(sessionId);
                 if (IsStaleSession(sessionId))
@@ -355,9 +368,13 @@
 
         if (playerInputs.Count == sequence.Count)
         {
+            var roundBonus = (roundNumber / 10.0) * speedMultiplier;
             score++;
-            GameState.RegisterScore(score, GameType.Hard);
-            statusMessage = "Corect! Urmeaza o secventa mai lunga.";
+            bonusTotal += roundBonus;
+            runRoundAverageTotalMs += roundAverageMs;
+            runRoundAverageCount++;
+            GameState.RegisterScore(GetTotalScoreRounded(), GameType.Hard);
+            statusMessage = $"Corect! Bonus runda +{roundBonus:0.00} (x{speedMultiplier}, medie {averageForBonusMs / 1000.0:0.00}s, cumulat: {bonusTotal:0.00}).";
             canPlayerClick = false;
             await Task.Delay(650);
 
@@ -557,6 +574,9 @@
     {
         BeginNewSession();
         score = 0;
+        bonusTotal = 0;
+        runRoundAverageTotalMs = 0;
+        runRoundAverageCount = 0;
         sequence.Clear();
         playerInputs.Clear();
         highlightedButton = null;
@@ -594,6 +614,9 @@
         hardVariant = variant;
         BeginNewSession();
         score = 0;
+        bonusTotal = 0;
+        runRoundAverageTotalMs = 0;
+        runRoundAverageCount = 0;
         sequence.Clear();
         playerInputs.Clear();
         highlightedButton = null;
@@ -630,6 +653,16 @@
         return isPlayingSequence ? "watch" : canPlayerClick ? "input" : "pause";
     }
 
+    private double GetTotalScore()
+    {
+        return score + bonusTotal;
+    }
+
+    private int GetTotalScoreRounded()
+    {
+        return (int)Math.Round(GetTotalScore(), MidpointRounding.AwayFromZero);
+    }
+
     private IReadOnlyList<GameStatEntry> GetRecentStats()
     {
         return GameState.GetStats(GameType.Hard).Take(12).ToList();
@@ -643,5 +676,37 @@
     private static int GetDurationMs(DateTimeOffset from)
     {
         return (int)Math.Max(0, (DateTimeOffset.UtcNow - from).TotalMilliseconds);
+    }
+
+    private int GetRoundAverageMs()
+    {
+        var elapsedMs = GetDurationMs(roundInputStartedAt);
+        var buttonsShown = Math.Max(1, sequence.Count);
+        return (int)Math.Round(elapsedMs / (double)buttonsShown, MidpointRounding.AwayFromZero);
+    }
+
+    private static int GetSpeedMultiplier(double averageResponseMs)
+    {
+        if (averageResponseMs < 200)
+        {
+            return 5;
+        }
+
+        if (averageResponseMs < 300)
+        {
+            return 4;
+        }
+
+        if (averageResponseMs < 500)
+        {
+            return 3;
+        }
+
+        if (averageResponseMs < 1000)
+        {
+            return 2;
+        }
+
+        return 1;
     }
 }

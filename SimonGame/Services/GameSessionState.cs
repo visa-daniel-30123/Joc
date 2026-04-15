@@ -20,7 +20,8 @@ public readonly record struct GameStatEntry(
     int Round,
     bool Correct,
     int ResponseMs,
-    int ElapsedMs);
+    int ElapsedMs,
+    int Score);
 
 public sealed class GameSessionState
 {
