@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SimonGame")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ebe10954ed4dc4e698121a49d145ffd8a111e260")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+36ae34dd6576650b00930ef5cafa950f1fce6ad2")]
 [assembly: System.Reflection.AssemblyProductAttribute("SimonGame")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SimonGame")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
