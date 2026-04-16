@@ -442,8 +442,9 @@
     private int GetHighlightDurationMs()
     {
         var duration = InitialHighlightDurationMs;
+        var speedReductionRounds = Math.Max(0, score - 2);
 
-        for (var i = 0; i < score; i++)
+        for (var i = 0; i < speedReductionRounds; i++)
         {
             if (duration > 500)
             {

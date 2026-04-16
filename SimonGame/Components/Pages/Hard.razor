@@ -465,7 +465,7 @@
 
     private int GetHighlightDurationMs()
     {
-        var speedSteps = score / 5;
+        var speedSteps = Math.Max(0, score + 2) / 5;
         var duration = InitialHighlightDurationMs - (speedSteps * 50);
         return Math.Max(MinimumHighlightDurationMs, duration);
     }
