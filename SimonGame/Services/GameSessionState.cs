@@ -29,11 +29,11 @@ public sealed class GameSessionState
     public static readonly GameColorMode[] SupportedColorModes = [GameColorMode.Random, GameColorMode.Mono];
     public static readonly MonoColorOption[] SupportedMonoColors =
     [
-        new("Blue", 212),
-        new("Green", 142),
-        new("Purple", 276),
-        new("Orange", 28),
-        new("Teal", 186)
+        new("Albastru", 212),
+        new("Verde", 142),
+        new("Mov", 276),
+        new("Portocaliu", 28),
+        new("Turcoaz", 186)
     ];
 
     public int GridSize { get; private set; } = 5;

@@ -3,7 +3,6 @@
 @implements IDisposable
 @using SimonGame.Services
 @using System.Globalization
-@using System.Linq
 @inject GameSessionState GameState
 
 <PageTitle>FlashFocus</PageTitle>
@@ -23,8 +22,8 @@
                 <p class="simon-level-pill">Scor baza: <strong>@score</strong></p>
                 <p class="simon-speed-pill">Bonus: <strong>@bonusTotal.ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
                 <p class="simon-level-pill">Total: <strong>@GetTotalScore().ToString("0.00", CultureInfo.InvariantCulture)</strong></p>
-                <p class="simon-speed-pill">Speed: <strong>@GetHighlightDurationMs() ms</strong></p>
-                <p class="simon-speed-pill">Mode: <strong>@($"{gridSize}x{gridSize}")</strong></p>
+                <p class="simon-speed-pill">Viteza: <strong>@GetHighlightDurationMs() ms</strong></p>
+                <p class="simon-speed-pill">Mod: <strong>@($"{gridSize}x{gridSize}")</strong></p>
             </div>
         </div>
 
@@ -42,34 +41,6 @@
             </div>
         </div>
 
-        <div class="simon-stats-panel">
-            <h3>Statistici runde (Normal)</h3>
-            <div class="simon-stats-table-wrap">
-                <table class="simon-stats-table">
-                    <thead>
-                        <tr>
-                            <th>Ora</th>
-                            <th>Runda</th>
-                            <th>Raspuns</th>
-                            <th>Timp total</th>
-                            <th>Scor</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in GetRecentStats())
-                        {
-                            <tr>
-                                <td>@row.CreatedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)</td>
-                                <td>@row.Round</td>
-                                <td>@FormatMs(row.ResponseMs)</td>
-                                <td>@FormatMs(row.ElapsedMs)</td>
-                                <td>@row.Score</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -629,16 +600,6 @@
     private int GetTotalScoreRounded()
     {
         return (int)Math.Round(GetTotalScore(), MidpointRounding.AwayFromZero);
-    }
-
-    private IReadOnlyList<GameStatEntry> GetRecentStats()
-    {
-        return GameState.GetStats(GameType.Normal).Take(12).ToList();
-    }
-
-    private static string FormatMs(int valueMs)
-    {
-        return $"{valueMs / 1000.0:0.00}s";
     }
 
     private static int GetDurationMs(DateTimeOffset from)
