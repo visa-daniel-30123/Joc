@@ -68,11 +68,14 @@
             {
                 <div class="simon-center-actions">
                     <button class="simon-start-btn simon-center-action-btn" @onclick="OnCenterActionClick">
-                        Incepe jocul
+                        @centerActionButtonText
                     </button>
-                    <button class="simon-secondary-btn simon-center-action-btn" @onclick="OnCenterExitClick">
-                        Iesi
-                    </button>
+                    @if (showCenterExitButton)
+                    {
+                        <button class="simon-secondary-btn simon-center-action-btn" @onclick="OnCenterExitClick">
+                            Iesi
+                        </button>
+                    }
                 </div>
             }
         </div>
@@ -124,8 +127,10 @@
     private bool showIntroMessage = true;
     private bool showCenterMessage;
     private bool showCenterActionButton;
+    private bool showCenterExitButton;
     private bool showRecordCelebration;
     private string centerMessage = string.Empty;
+    private string centerActionButtonText = "Incepe jocul";
     private TaskCompletionSource<bool>? centerActionCompletion;
     private int runStartingHighScore;
     private bool finalStageBonusAwarded;
@@ -164,8 +169,10 @@
         selectedButton = null;
         showCenterMessage = false;
         showCenterActionButton = false;
+        showCenterExitButton = false;
         showRecordCelebration = false;
         centerMessage = string.Empty;
+        centerActionButtonText = "Incepe jocul";
         centerActionCompletion?.TrySetCanceled();
         centerActionCompletion = null;
         await StartNextRound(sessionId, true);
@@ -317,11 +324,28 @@
         canPlayerClick = false;
         if (reachedFinalStageNow)
         {
-            await ShowCenterMessageAsync("Ai ajuns la sfarsit! Bonus +250 puncte.", 1800, sessionId);
+            if (runStartingHighScore > 0 && GetTotalScoreRounded() > runStartingHighScore)
+            {
+                await ShowRecordCelebrationAsync(sessionId);
+                if (IsStaleSession(sessionId))
+                {
+                    return;
+                }
+            }
+
+            statusMessage = "Incearca sa fi mai rapid!";
+            var shouldRestart = await WaitForCenterActionAsync("Incearca sa fi mai rapid!", sessionId, "Start joc nou", false);
             if (IsStaleSession(sessionId))
             {
                 return;
             }
+
+            if (shouldRestart)
+            {
+                await StartNewGame();
+            }
+
+            return;
         }
         await Task.Delay(650);
 
@@ -393,6 +417,7 @@
         centerMessage = message;
         showCenterMessage = true;
         showCenterActionButton = false;
+        showCenterExitButton = false;
         await InvokeAsync(StateHasChanged);
         await Task.Delay(durationMs);
 
@@ -403,6 +428,7 @@
 
         showCenterMessage = false;
         showCenterActionButton = false;
+        showCenterExitButton = false;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -485,7 +511,7 @@
         };
     }
 
-    private async Task<bool> WaitForCenterActionAsync(string message, int sessionId)
+    private async Task<bool> WaitForCenterActionAsync(string message, int sessionId, string actionButtonText = "Incepe jocul", bool showExitButton = true)
     {
         if (IsStaleSession(sessionId))
         {
@@ -496,8 +522,10 @@
         centerActionCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         centerMessage = message;
+        centerActionButtonText = actionButtonText;
         showCenterMessage = true;
         showCenterActionButton = true;
+        showCenterExitButton = showExitButton;
         await InvokeAsync(StateHasChanged);
 
         try
@@ -511,6 +539,8 @@
 
             showCenterMessage = false;
             showCenterActionButton = false;
+            showCenterExitButton = false;
+            centerActionButtonText = "Incepe jocul";
             centerActionCompletion = null;
             await InvokeAsync(StateHasChanged);
             return accepted;
@@ -564,8 +594,10 @@
         isPlayingSequence = false;
         showCenterMessage = false;
         showCenterActionButton = false;
+        showCenterExitButton = false;
         showRecordCelebration = false;
         centerMessage = string.Empty;
+        centerActionButtonText = "Incepe jocul";
         statusMessage = colorMode == GameColorMode.Mono
             ? $"Setari actualizate ({gridSize}x{gridSize}, Mono). Apasa Start joc nou."
             : $"Setari actualizate ({gridSize}x{gridSize}, Random). Apasa Start joc nou.";
