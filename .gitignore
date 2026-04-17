@@ -1,4 +1,18 @@
-bin/
-obj/
-**/bin/
-**/obj/
+# Build output
+[Bb]in/
+[Oo]bj/
+**/[Bb]in/
+**/[Oo]bj/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+
+# IDE folders
+.vs/
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
